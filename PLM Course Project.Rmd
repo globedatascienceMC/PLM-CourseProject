@@ -1,0 +1,98 @@
+---
+title: "PLM Course Project"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##Overview
+This is the course project for Coursera's Practical Machine Learning class.
+
+It uses dataset from http://groupware.les.inf.puc-rio.br/har. Full source:
+
+Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. “Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human ’13)”. Stuttgart, Germany: ACM SIGCHI, 2013.
+
+##About the Dataset
+Train and Validate Data sets were already provided.
+The training data is available here:
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The validate data is available here:
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it.
+
+In this project, we will use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways.
+
+The goal of the project is to predict the manner in which they did the exercise. This is the “classe” variable in the training set. 
+
+##Loading and checking the dataset
+We load the test and validate data set and check its features.
+```{r load}
+training <- read.csv('./pml-training.csv', header=T)
+validate <- read.csv('./pml-testing.csv', header=T)
+dim(training)
+dim(validate)
+str(training)
+```
+Both datasets have the same number of columns. Our training dataset has 19622 observations while pur validate only has 20. From this, we can also see that the training dataset has missing and blank values. The first 5 rows are also just identifiers and are irrelevant for modelling.
+
+##Data Cleaning and Pre-processing
+Let's see the behavior of the NA values. We want to remove the columns with many missing values. Let's check the proportions of missing values per column.
+```{r explore}
+proportionsTrain <- colMeans(is.na(training))
+unique(proportionsTrain)
+proportionsTest <- colMeans(is.na(validate))
+unique(proportionsTest)
+```
+
+There are only 2 proportions of missing values for each: 0.0000000, 0.9793089 and 0, 1.
+97-100% is a lot so we'll remove those columns. We will also remove the first 5 columns that we mentioned earlier as they may unnecessarily add noise to the prediction.
+
+```{r cleaning}
+#Delete columns that are purely NA and blank
+training <- training[,(colSums(is.na(training) | training=="") == 0)]
+validate <- validate[,(colSums(is.na(validate) | validate=="") == 0)]
+#Delete irrelevant columns
+training <- training[,-(1:5)]
+validate <- validate[,-(1:5)]
+dim(training)
+dim(validate)
+```
+
+After cleaning, our final dataset only has 55 columns.
+
+Now that our data is clean, we can now split the data for modelling and prediction.
+```{r split}
+set.seed(123)
+library(caret)
+intrain <- createDataPartition(y = training$classe, p = 0.7, list = FALSE)
+train <- training[intrain, ]
+test <- training[-intrain, ]
+```
+
+##Modelling
+We will use Random Forest as our model for this project.
+```{r train}
+library(randomForest)
+#Training the model
+RFmodel <- randomForest(classe ~ ., data = train, importance = TRUE)
+RFmodel
+#Prediction
+RFpred <- predict(RFmodel, test)
+#Confusion Matrix
+cm_RF <- confusionMatrix(test$classe, RFpred)
+cm_RF
+```
+Our model has pretty good metrics with 99.75% accuracy.
+
+##Making Predictions
+Since our model is pretty good. Let's use it to predict the validate dataset.
+```{r validate}
+#solves error of mismatch
+levels(validate$new_window) <- levels(train$new_window)
+predictValidate <- predict(RFmodel, validate[,-55], type="class")
+predictValidate
+```
